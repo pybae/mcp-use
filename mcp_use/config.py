@@ -82,6 +82,8 @@ def create_connector_from_config(
             auth_token=server_config.get("auth_token", None),
             sampling_callback=sampling_callback,
             elicitation_callback=elicitation_callback,
+            max_reconnect_attempts=server_config.get("maxReconnectAttempts", 3),
+            reconnect_backoff_seconds=server_config.get("reconnectBackoffSeconds", 0.5),
         )
 
     # WebSocket connector

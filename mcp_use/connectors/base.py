@@ -7,7 +7,9 @@ must implement.
 
 from abc import ABC, abstractmethod
 from datetime import timedelta
-from typing import Any
+from typing import Any, Callable
+import asyncio
+import httpx
 
 from mcp import ClientSession, Implementation
 from mcp.client.session import ElicitationFnT, SamplingFnT
@@ -23,6 +25,22 @@ from ..task_managers import ConnectionManager
 
 class BaseConnector(ABC):
     """Base class for MCP connectors.
+
+    async def _run_with_reconnect(self, func: Callable, *args, **kwargs):
+        max_reconnect = getattr(self, "_max_reconnect", 3)
+        backoff = getattr(self, "_backoff", 0.5)
+        attempts = 0
+        while True:
+            try:
+                await self._ensure_connected()
+                return await func(*args, **kwargs)
+            except (OSError, httpx.TransportError, ConnectionError, BrokenPipeError) as e:
+                self._connected = False
+                if max_reconnect >= 0 and attempts >= max_reconnect:
+                    raise RuntimeError("Max reconnect attempts exceeded") from e
+                attempts += 1
+                await asyncio.sleep(backoff * (2 ** (attempts - 1)))
+                await self.connect()
 
     This class defines the interface that all MCP connectors must implement.
     """
@@ -124,6 +142,7 @@ class BaseConnector(ABC):
         # Initialize the session
         result = await self.client_session.initialize()
         self._initialized = True  # Mark as initialized
+        self._reconnect_attempts = 0
 
         server_capabilities = result.capabilities
 

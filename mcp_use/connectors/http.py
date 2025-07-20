@@ -30,6 +30,8 @@ class HttpConnector(BaseConnector):
         sse_read_timeout: float = 60 * 5,
         sampling_callback: SamplingFnT | None = None,
         elicitation_callback: ElicitationFnT | None = None,
+        max_reconnect_attempts: int = 3,
+        reconnect_backoff_seconds: float = 0.5,
     ):
         """Initialize a new HTTP connector.
 
@@ -50,9 +52,13 @@ class HttpConnector(BaseConnector):
             self.headers["Authorization"] = f"Bearer {auth_token}"
         self.timeout = timeout
         self.sse_read_timeout = sse_read_timeout
+        self._max_reconnect = max_reconnect_attempts
+        self._backoff = reconnect_backoff_seconds
 
     async def connect(self) -> None:
         """Establish a connection to the MCP implementation."""
+        if self._connected and not self.is_connected:
+            await self.disconnect()
         if self._connected:
             logger.debug("Already connected to MCP implementation")
             return
@@ -179,6 +185,30 @@ class HttpConnector(BaseConnector):
         self._connection_manager = connection_manager
         self._connected = True
         logger.debug(f"Successfully connected to MCP implementation via {self.transport_type}: {self.base_url}")
+
+    # Network-operation wrappers for auto-reconnect
+    async def call_tool(self, name, arguments, read_timeout_seconds=None):
+        return await self._run_with_reconnect(
+            super().call_tool, name, arguments, read_timeout_seconds
+        )
+
+    async def list_tools(self):
+        return await self._run_with_reconnect(super().list_tools)
+
+    async def list_resources(self):
+        return await self._run_with_reconnect(super().list_resources)
+
+    async def read_resource(self, uri):
+        return await self._run_with_reconnect(super().read_resource, uri)
+
+    async def list_prompts(self):
+        return await self._run_with_reconnect(super().list_prompts)
+
+    async def get_prompt(self, name, arguments=None):
+        return await self._run_with_reconnect(super().get_prompt, name, arguments)
+
+    async def request(self, method, params=None):
+        return await self._run_with_reconnect(super().request, method, params)
 
     @property
     def public_identifier(self) -> str:
