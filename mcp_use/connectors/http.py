@@ -85,37 +85,10 @@ class HttpConnector(BaseConnector):
             try:
                 # Try to initialize - this is where streamable HTTP vs SSE difference should show up
                 result = await test_client.initialize()
-
                 # If we get here, streamable HTTP works
-
                 self.client_session = test_client
                 self.transport_type = "streamable HTTP"
-                self._initialized = True  # Mark as initialized since we just called initialize()
-
-                # Populate tools, resources, and prompts since we've initialized
-                server_capabilities = result.capabilities
-
-                if server_capabilities.tools:
-                    # Get available tools directly from client session
-                    tools_result = await self.client_session.list_tools()
-                    self._tools = tools_result.tools if tools_result else []
-                else:
-                    self._tools = []
-
-                if server_capabilities.resources:
-                    # Get available resources directly from client session
-                    resources_result = await self.client_session.list_resources()
-                    self._resources = resources_result.resources if resources_result else []
-                else:
-                    self._resources = []
-
-                if server_capabilities.prompts:
-                    # Get available prompts directly from client session
-                    prompts_result = await self.client_session.list_prompts()
-                    self._prompts = prompts_result.prompts if prompts_result else []
-                else:
-                    self._prompts = []
-
+                await self.initialize()
             except Exception as init_error:
                 # Clean up the test client
                 try:
@@ -166,6 +139,7 @@ class HttpConnector(BaseConnector):
                     )
                     await self.client_session.__aenter__()
                     self.transport_type = "SSE"
+                    await self.initialize()
 
                 except Exception as sse_error:
                     logger.error(

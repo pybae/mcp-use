@@ -266,6 +266,9 @@ class BaseConnector(ABC):
                 raise RuntimeError(
                     "Connection to MCP server has been lost. Auto-reconnection is disabled. Please reconnect manually."
                 )
+        # Ensure session is initialized after a (re)connect
+        if not self._initialized:
+            await self.initialize()
 
     async def call_tool(
         self, name: str, arguments: dict[str, Any], read_timeout_seconds: timedelta | None = None
