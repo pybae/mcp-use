@@ -381,9 +381,7 @@ class MCPAgent:
             display_query = query[:50].replace("\n", " ") + "..." if len(query) > 50 else query.replace("\n", " ")
             logger.info(f"💬 Received query: '{display_query}'")
 
-            # Add the user query to conversation history if memory is enabled
-            if self.memory_enabled:
-                self.add_to_history(HumanMessage(content=query))
+            # Do not add the user query before execution to avoid duplication
 
             # Use the provided history or the internal history
             history_to_use = external_history if external_history is not None else self._conversation_history
@@ -498,8 +496,9 @@ class MCPAgent:
                 logger.warning(f"⚠️ Agent stopped after reaching max iterations ({steps})")
                 result = f"Agent stopped after reaching the maximum number of steps ({steps})."
 
-            # Add the final response to conversation history if memory is enabled
+            # Add both user and AI message to conversation history in correct order
             if self.memory_enabled:
+                self.add_to_history(HumanMessage(content=query))
                 self.add_to_history(AIMessage(content=result))
 
             logger.info(f"🎉 Agent execution complete in {time.time() - start_time} seconds")
@@ -659,8 +658,7 @@ class MCPAgent:
         effective_max_steps = max_steps or self.max_steps
         self._agent_executor.max_iterations = effective_max_steps
 
-        if self.memory_enabled:
-            self.add_to_history(HumanMessage(content=query))
+        # Do not add the user message to history here (handled in event loop)
 
         history_to_use = external_history if external_history is not None else self._conversation_history
         inputs = {"input": query, "chat_history": history_to_use}
@@ -668,6 +666,8 @@ class MCPAgent:
         # 3. Stream & diff -------------------------------------------------------
         async for event in self._agent_executor.astream_events(inputs):
             if event.get("event") == "on_chain_end":
+                if self.memory_enabled:
+                    self.add_to_history(HumanMessage(content=query))
                 output = event["data"]["output"]
                 if isinstance(output, list):
                     for message in output:
