@@ -14,7 +14,11 @@ Action Input: the input to the action
 Observation: the result of the action
 ... (this Thought/Action/Action Input/Observation can repeat N times)
 Thought: I now know the final answer
-Final Answer: the final answer to the original input question"""
+Final Answer: the final answer to the original input question
+
+If there are validation errors with your Action Input (such as missing required fields or
+incorrect data types), carefully review the tool description and retry with corrected input.
+Pay attention to required parameters and their expected format."""
 
 
 SERVER_MANAGER_SYSTEM_PROMPT_TEMPLATE = """You are a helpful assistant designed to interact with MCP
@@ -36,6 +40,10 @@ or 'get_active_mcp_server' to check the current connection.
 When you connect to a server using 'connect_to_mcp_server',
  you will be informed about the new tools that become available.
 You can then use these server-specific tools in subsequent steps.
+
+If there are validation errors with your Action Input (such as missing required fields or
+incorrect data types), carefully review the tool description and retry with corrected input.
+Pay attention to required parameters and their expected format.
 
 Here are the tools *currently* available to you (this list includes server management tools and will
  change when you connect to a server):
