@@ -152,6 +152,39 @@ class LangChainAdapter(BaseAdapter):
                 logger.debug(f'MCP tool: "{self.name}" received input: {kwargs}')
 
                 try:
+                    if hasattr(self, 'args_schema') and self.args_schema:
+                        try:
+                            self.args_schema.model_validate(kwargs)
+                        except Exception as ve:
+                            from pydantic_core import ValidationError
+                            if isinstance(ve, ValidationError):
+                                error_details = []
+                                for error in ve.errors():
+                                    field_path = " -> ".join(str(loc) for loc in error['loc'])
+                                    error_msg = error['msg']
+                                    error_details.append(f"Field '{field_path}': {error_msg}")
+
+                                detailed_validation_error = (
+                                    f"Validation error in tool '{self.name}': "
+                                    f"{'; '.join(error_details)}. "
+                                    f"Please review the tool description and provide the correct Action Input "
+                                    f"with all required parameters and proper data types."
+                                )
+                                logger.warning(f"Tool validation error: {detailed_validation_error}")
+
+                                if self.handle_tool_error:
+                                    return detailed_validation_error
+                                else:
+                                    raise ToolException(detailed_validation_error) from ve
+                            else:
+                                validation_error_msg = f"Input validation error in tool '{self.name}': {str(ve)}"
+                                logger.warning(f"Tool input validation error: {validation_error_msg}")
+
+                                if self.handle_tool_error:
+                                    return validation_error_msg
+                                else:
+                                    raise ToolException(validation_error_msg) from ve
+
                     tool_result: CallToolResult = await self.tool_connector.call_tool(self.name, kwargs)
                     try:
                         # Use the helper function to parse the result
@@ -162,6 +195,18 @@ class LangChainAdapter(BaseAdapter):
                         return f"Error parsing result: {e!s}; Raw content: {tool_result.content!r}"
 
                 except Exception as e:
+                    if "ValidationError" in str(e) or "validation" in str(e).lower():
+                        validation_error_msg = (
+                            f"Tool validation error in '{self.name}': {str(e)}. "
+                            f"Please check the tool description and provide correct Action Input."
+                        )
+                        logger.warning(f"Tool execution validation error: {validation_error_msg}")
+
+                        if self.handle_tool_error:
+                            return validation_error_msg
+                        else:
+                            raise ToolException(validation_error_msg) from e
+
                     if self.handle_tool_error:
                         return f"Error executing MCP tool: {str(e)}"
                     raise

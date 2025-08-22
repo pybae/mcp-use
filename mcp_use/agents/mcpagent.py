@@ -305,6 +305,7 @@ class MCPAgent:
         """
         return self.disallowed_tools
 
+
     async def _consume_and_return(
         self,
         generator: AsyncGenerator[tuple[AgentAction, str], str],
